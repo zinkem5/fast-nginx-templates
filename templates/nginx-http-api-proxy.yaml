@@ -1,0 +1,88 @@
+title: nginxAPI
+definitions:
+  endpoint_forwarder:
+    type: object
+    properties:
+      endpoint_path:
+        type: string
+        default: /api/
+      forward_domain:
+        type: string
+        default: example.com
+      forward_port:
+        type: integer
+        default: 8080
+  access_log_path:
+    type: string
+    default: /var/log/nginx/access.log
+  error_log_path:
+    type: string
+    default: /var/log/nginx/error.log
+  keepalive_timeout:
+    type: integer
+    default: 65
+  listener_port:
+    type: integer
+    default: 80
+  endpoint_forwarders:
+    type: array
+    items:
+      $ref: '#/definitions/endpoint_forwarder'
+      type: object
+      properties:
+        endpoint
+  html_root:
+    type: string
+    default: /usr/share/nginx/html
+template: |
+  user  nginx;
+  worker_processes  1;
+
+  error_log  {{error_log_path}} warn;
+  pid        /var/run/nginx.pid;
+
+  events {
+      worker_connections  1024;
+  }
+
+  http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+      access_log  {{access_log_path}}  main;
+
+      sendfile        on;
+      #tcp_nopush     on;
+
+      keepalive_timeout  {{keepalive_timeout}};
+
+      #gzip  on;
+
+      server {
+          listen {{listener_port}};
+
+          {{# endpoint_forwarders}}
+
+          location {{endpoint_path}} {
+              proxy_pass http://{{forward_domain}}:{{forward_port}}/;
+              proxy_redirect  http://{{forward_domain}}/ /;
+              proxy_read_timeout 60s;
+
+              # May not need or want to set Host. Should default to the above hostname.
+              proxy_set_header          Host            $host;
+              proxy_set_header          X-Real-IP       $remote_addr;
+              proxy_set_header          X-Forwarded-For $proxy_add_x_forwarded_for;
+          }
+
+          {{/endpoint_forwarders}}
+
+          location / {
+              root   {{html_root}};
+              index  index.html index.htm;
+          }
+      }
+  }

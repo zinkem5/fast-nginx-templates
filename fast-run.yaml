@@ -1,12 +1,13 @@
 parameters:
   fast_docker_path: ../fast-docker
-  fast_nginx_templates: /Users/zinkem/OSS/fast-nginx-templates/templates/
   fast_container: fastdock
 template: |
   cd {{fast_docker_path}}
   docker build --tag {{fast_container}} .
   cd -
+  foo=`pwd`/templates/
+  echo $foo
   docker run \
     -p 3000:3000 \
-    -v "{{fast_nginx_templates}}:/var/config/templates:ro" \
+    -v $foo:/var/config/templates:ro \
     {{fast_container}}
